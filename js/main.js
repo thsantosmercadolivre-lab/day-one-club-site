@@ -1,7 +1,15 @@
 /* DAY ONE CLUB · interações */
 
-// >>> PREENCHER: número do WhatsApp da equipe, só dígitos com DDI (ex.: 5511999999999)
-const WHATSAPP_NUMBER = "";
+// ⚠️ NÃO ALTERAR (regra do projeto, vale para Lovable e qualquer IA/dev):
+// as constantes TAMIRES_* abaixo e o bloco "Formulário de aplicação → Tamires" no fim
+// deste arquivo ligam o formulário ao WhatsApp da Tamires. Não mudar URL, origem, token,
+// nomes dos campos (nome, whatsapp, negocio, perfil, faturamento, problema, motivo,
+// compromisso) nem o formato do JSON enviado. Ver REGRAS-FORMULARIO.md.
+// Aplicação vai pro n8n da Tamires, que chama o lead no WhatsApp (~1 min depois).
+// O token só autoriza esta origem (linha "dayone-site" em tamires_captura).
+const TAMIRES_URL = "https://n8n.62-72-63-118.sslip.io/webhook/form-lead";
+const TAMIRES_ORIGEM = "dayone-site";
+const TAMIRES_TOKEN = "jad0UVVy4bsyYucx7HeOvzR9";
 
 // Menu mobile
 const burger = document.querySelector(".burger");
@@ -178,30 +186,42 @@ document.querySelectorAll(".proof-card").forEach(card => {
   v.addEventListener("ended", () => card.classList.remove("playing"));
 });
 
-// Formulário de aplicação → WhatsApp com as respostas
+// Formulário de aplicação → Tamires (n8n) com as respostas
+// ⚠️ NÃO ALTERAR este bloco. Ver REGRAS-FORMULARIO.md.
 const form = document.querySelector("#form-aplicacao");
 if (form) {
-  form.addEventListener("submit", e => {
+  form.addEventListener("submit", async e => {
     e.preventDefault();
     const d = new FormData(form);
     const g = k => (d.get(k) || "").toString().trim();
-    const msg = [
-      "*Aplicação · Day One Club · Comunidade*",
-      "",
-      `*Nome:* ${g("nome")}`,
-      `*WhatsApp:* ${g("whatsapp")}`,
-      `*O que faz:* ${g("negocio")}`,
-      `*Como se define:* ${g("perfil")}`,
-      `*Faturamento médio mensal:* ${g("faturamento")}`,
-      `*Maior problema hoje:* ${g("problema")}`,
-      `*Por que mudar de ambiente agora:* ${g("motivo")}`,
-      `*Topa executar uma estratégia por semana:* ${g("compromisso")}`
-    ].join("\n");
-    if (!WHATSAPP_NUMBER) {
-      alert("Formulário pronto. Falta configurar o número do WhatsApp em js/main.js (WHATSAPP_NUMBER).");
-      console.log(msg);
+    const tel = g("whatsapp").replace(/\D/g, "");
+    if (tel.length < 10 || tel.length > 13) {
+      alert("Confere o WhatsApp: precisa ter DDD, ex.: (11) 9 9999-9999.");
       return;
     }
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`, "_blank");
+    const btn = form.querySelector("button[type=submit]");
+    const foot = form.querySelector(".form-foot");
+    btn.disabled = true;
+    const respostas = [
+      ["O que faz", g("negocio")],
+      ["Como se define", g("perfil")],
+      ["Faturamento médio mensal", g("faturamento")],
+      ["Maior problema do negócio hoje", g("problema")],
+      ["Por que quer mudar de ambiente agora", g("motivo")],
+      ["Topa executar uma estratégia por semana", g("compromisso")]
+    ].map(([pergunta, resposta]) => ({ pergunta, resposta }));
+    try {
+      const r = await fetch(TAMIRES_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ origem: TAMIRES_ORIGEM, token: TAMIRES_TOKEN, nome: g("nome"), telefone: tel, respostas })
+      });
+      if (!r.ok) throw new Error(r.status);
+      form.reset();
+      foot.textContent = "Aplicação recebida! Em instantes a nossa equipe te chama no WhatsApp.";
+    } catch {
+      foot.textContent = "Não conseguimos enviar agora. Tenta de novo em alguns segundos.";
+      btn.disabled = false;
+    }
   });
 }
